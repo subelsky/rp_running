@@ -1,0 +1,98 @@
+#!/usr/bin/env ruby
+
+require 'dotenv'
+require 'pry'
+
+require_relative '../lib/rp_runner'
+
+Dotenv.load
+
+URL = ENV.fetch('RP_RACE_URL')
+PASSWORD = ENV.fetch('RP_RACE_PASSWORD')
+RACE_GROUP_ID = ENV.fetch('RP_RACE_GROUP_ID')
+RP_GROUP_PASSWORD = ENV.fetch('RP_GROUP_PASSWORD')
+
+RACE_MAPPINGS = {
+  '10k Race' => '446245',
+  '5k Race' => '446244',
+  'BaltiMORON-a-thon' => '446246',
+  'Half Marathon' => '446243',
+  'Marathon' => '446242'
+}
+
+# SHIRT_MAPPINGS = {
+  # "Men's Large" => '',
+  # "Men's Medium" => '',
+  # "Men's Small" => '',
+  # "Men's XL" => '',
+  # "Women's Large" => '',
+  # "Women's Medium" => '',
+  # "Women's Small" => '',
+  # "Women's XL" => '',
+# }
+
+race_name = '5k Race' # TEST
+
+browser = Capybara.current_session
+# driver = browser.driver.browser
+
+browser.visit url
+
+other_adult_btn = browser.find '.differentAdult', visible: false
+other_adult_btn.ancestor('label').click
+
+browser.fill_in 'registrant[1][first_name]', with: 'Mike'
+browser.fill_in 'registrant[1][last_name]', with: 'Subelsky'
+browser.fill_in 'registrant[1][email]', with: 'brf+test@mikeshop.net'
+browser.fill_in 'registrant[1][confirmEmail]', with: 'brf+test@mikeshop.net'
+browser.fill_in 'registrant[1][password]', with: password
+browser.fill_in 'registrant[1][confirmPassword]', with: password
+browser.fill_in 'registrant[1][dob]', with: '04/20/1977'
+
+browser.find('.label-text', text: 'Male', wait: 1).click
+# OR
+# browser.find('.label-text', text: 'Female', wait: 1).click
+
+browser.fill_in 'registrant[1][phone]', with: '443-928-7417'
+browser.fill_in 'registrant[1][address1]', with: '306 Woodlawn Rd'
+browser.fill_in 'registrant[1][zipcode]', with: '21210'
+
+browser.find('span', class: 'label-text', exact_text: 'Charity Registration').click
+
+race_id = RACE_MAPPINGS.fetch(race_name) { raise "unrecognized race name '#{race_name}'" }
+browser.find(:xpath, "//option[@value=#{race_id}]").click
+
+browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+browser.find('.ageConfirm').click
+
+button = browser.find_button('Continue')
+button.click
+
+browser.find('span', text: 'Join an Existing Group').click
+
+browser.find(:xpath, "//option[@value=#{RACE_GROUP_ID}]").click
+browser.find('input[type="password"]').fill_in(with: RP_GROUP_PASSWORD)
+
+button = browser.find_button('Continue')
+button.click
+
+browser.find('span', text: 'Roland Park Public Annual Fund').click
+browser.find('span', text: 'No').click
+browser.find('span', text: 'Yes, I confirm').click
+
+browser.fill_in 'question[90999][0][value]', with: 'Laura Wexler'
+browser.fill_in 'question[91000][0][value]', with: '443-739-2976'
+
+button = browser.find_button('Continue')
+button.click
+
+browser.find('option', text: "Men's Large").click
+
+button = browser.find_button('Continue')
+button.click
+
+# Review registration
+binding.pry
+
+button = browser.find_button('Complete Registration')
+button.click

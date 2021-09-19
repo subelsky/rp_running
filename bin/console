@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'irb'
+require_relative '../lib/rp_runner'
+
+@browser = Capybara.current_session
+# driver = browser.driver.browser
+
+IRB.start
