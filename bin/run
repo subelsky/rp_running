@@ -1,24 +1,27 @@
 #!/usr/bin/env ruby
 
+require 'csv'
 require 'dotenv'
+require 'pathname'
 require 'pry'
 
-require_relative '../lib/rp_runner'
+require_relative '../lib/rp_runner/setup'
+require_relative '../lib/rp_runner/driver'
 
 Dotenv.load
 
-URL = ENV.fetch('RP_RACE_URL')
-PASSWORD = ENV.fetch('RP_RACE_PASSWORD')
+RACE_URL = ENV.fetch('RP_RACE_URL')
+RACE_PASSWORD = ENV.fetch('RP_RACE_PASSWORD')
 RACE_GROUP_ID = ENV.fetch('RP_RACE_GROUP_ID')
-RP_GROUP_PASSWORD = ENV.fetch('RP_GROUP_PASSWORD')
+RACE_GROUP_PASSWORD = ENV.fetch('RP_RACE_GROUP_PASSWORD')
 
-RACE_MAPPINGS = {
-  '10k Race' => '446245',
-  '5k Race' => '446244',
-  'BaltiMORON-a-thon' => '446246',
-  'Half Marathon' => '446243',
-  'Marathon' => '446242'
-}
+RUNNER_DATA_PATH = ENV.fetch('RP_RUNNER_DATA_PATH')
+
+path = Pathname(RUNNER_DATA_PATH)
+runners = CSV.open(path, headers: true,
+                   header_converters: ->(h) { h.downcase.gsub(' ', '_').to_sym },
+                                     strip: true)#.to_a
+
 
 # SHIRT_MAPPINGS = {
   # "Men's Large" => '',
@@ -31,11 +34,43 @@ RACE_MAPPINGS = {
   # "Women's XL" => '',
 # }
 
-race_name = '5k Race' # TEST
+# race_name = '5k Race' # TEST
 
 browser = Capybara.current_session
 # driver = browser.driver.browser
 
+driver = RpRunner::Driver.new(browser, url: RACE_URL,
+                                       race_password: RACE_PASSWORD,
+                                       race_group_id: RACE_GROUP_ID,
+                                       group_password: RACE_GROUP_PASSWORD)
+
+runners.each do |row|
+  runner_data = row.to_h
+  weird_first_name_key = (runner_data.keys.find /first_name/).first # HACK to fix some kind of CSV encoding issue
+
+  first_name = runner_data[:first_name] = runner_data.delete(weird_first_name_key)
+  last_name = runner_data[:last_name]
+  name = "#{first_name} #{last_name}"
+
+  attendee_number = runner_data.fetch(:'attendee_#')
+
+  if first_name =~ /^#/
+    puts "skipping #{attendee_number}: #{name} since it was marked as skip"
+    next
+  end
+
+  puts "Registering Attendee ##{attendee_number}: #{name}"
+
+  alert = catch :alert do
+    driver.call(runner_data.to_h)
+    puts "\tRegistered #{attendee_number}: #{name}"
+    next
+  end
+
+  puts "Skipping #{attendee_number}: #{name} due to #{alert}"
+end
+
+__END__
 browser.visit url
 
 other_adult_btn = browser.find '.differentAdult', visible: false
@@ -71,7 +106,7 @@ button.click
 browser.find('span', text: 'Join an Existing Group').click
 
 browser.find(:xpath, "//option[@value=#{RACE_GROUP_ID}]").click
-browser.find('input[type="password"]').fill_in(with: RP_GROUP_PASSWORD)
+browser.find('input[type="password"]').fill_in(with: RACE_GROUP_PASSWORD)
 
 button = browser.find_button('Continue')
 button.click
